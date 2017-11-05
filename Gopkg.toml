@@ -1,0 +1,3 @@
+[[constraint]]
+  name = "github.com/ogier/pflag"
+  version = "0.0.1"
