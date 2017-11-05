@@ -23,4 +23,24 @@
 // currently attempt to deal with this in any special way, so in some cases
 // it may be necessary to do some manual renaming work after pilfer has
 // finished in order to resolve conflicting type names.
+//
+// This program only brings the type definitions themselves, and not any
+// methods associated with them. In particular, this means that types that
+// implement interfaces like json.Marshaler, gob.Decoder, etc will not have
+// these custom behaviors preserved, which will probably cause marshalling or
+// unmarshalling to fail. The user must manually copy or re-implement such
+// methods.
+//
+// This program will import interface types along with all other named types,
+// but note that this may not actually prove useful because any named types
+// used by those interfaces will also be imported, creating a new interface
+// type that is incompatible with the original. This will cause problems for
+// gob encoding and decoding because any stored interface types can never
+// match.
+//
+// At this time the program does not import constants of a type that are found
+// within the same package, which is problematic for named types used as
+// enumeration types since the constants in the source package will have
+// an incompatible type. It is necessary, therefore, to manually copy the
+// relevant constants.
 package pilfer
