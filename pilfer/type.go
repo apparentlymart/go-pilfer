@@ -45,6 +45,11 @@ func (t typeTable) Has(ty *takeType) bool {
 	return has
 }
 
+func (t typeTable) NewNameTaken(newName string) bool {
+	_, has := t.newNames[newName]
+	return has
+}
+
 func (t typeTable) Add(ty *takeType) {
 	newName := ty.Name.Name()
 	if _, conflict := t.newNames[newName]; conflict {

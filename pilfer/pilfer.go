@@ -27,14 +27,15 @@ func Pilfer(srcPkg, typeName string, w io.Writer, pkgName string) error {
 		return fmt.Errorf("type %s in package %s is not a named type", typeName, info.Pkg.Name())
 	}
 
-	table := findInterestingTypes(ty, prog)
-	names := table.NewNames()
+	types := findInterestingTypes(ty, prog)
+	consts := findInterestingConsts(prog, types)
+	constNamesByType := findInterestingConsts(prog, types).NewNamesByTypeName()
 
 	buf := bytes.Buffer{}
 	fmt.Fprintf(&buf, "package %s\n\n", pkgName)
 
-	for _, newName := range names {
-		ty := table.TypeByNewName(newName)
+	for _, newName := range types.NewNames() {
+		ty := types.TypeByNewName(newName)
 		pkgPath := ty.Name.Pkg().Path()
 		info := prog.Package(pkgPath)
 
@@ -44,9 +45,19 @@ func Pilfer(srcPkg, typeName string, w io.Writer, pkgName string) error {
 				ty.Spec,
 			},
 		}
-		rewriteTypeIdents(wrap, info, table)
+		rewriteTypeIdents(wrap, info, types)
 		format.Node(&buf, prog.Fset, wrap)
 		buf.WriteString("\n\n")
+
+		constNames := constNamesByType[newName]
+		if len(constNames) > 0 {
+			buf.WriteString("const (\n")
+			for _, constName := range constNames {
+				cn := consts.ConstantByNewName(constName)
+				fmt.Fprintf(&buf, "\t%s %s = %s\n", constName, newName, cn.Value.ExactString())
+			}
+			buf.WriteString(")\n")
+		}
 	}
 
 	fmted, err := format.Source(buf.Bytes())
@@ -192,6 +203,55 @@ func addInterestingTypes(start *takeType, table typeTable, prog *loader.Program)
 			addInterestingTypes(ty, table, prog)
 		}
 	}).VisitAll(start.Spec)
+}
+
+func findInterestingConsts(prog *loader.Program, tys typeTable) constantTable {
+	table := newConstantTable(tys)
+
+	typeNames := tys.NewNames()
+	for _, typeName := range typeNames {
+		ty := tys.TypeByNewName(typeName)
+
+		pkgPath := ty.Name.Pkg().Path()
+		info := prog.Package(pkgPath)
+
+		for _, file := range info.Files {
+			for _, decl := range file.Decls {
+				if gd, isGen := decl.(*ast.GenDecl); isGen {
+					if gd.Tok == token.CONST {
+						for _, spec := range gd.Specs {
+							if vs, isValue := spec.(*ast.ValueSpec); isValue {
+								for i := range vs.Names {
+									name := vs.Names[i]
+									cd, isConst := info.Defs[name].(*types.Const)
+									if !isConst || cd == nil {
+										continue
+									}
+									value := cd.Val()
+
+									tyObj := cd.Type()
+									if tyObj != ty.Type {
+										continue
+									}
+
+									cn := &takeConstant{
+										Name:  name,
+										Const: cd,
+										Value: value,
+										Type:  ty,
+									}
+									table.Add(cn)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+	}
+
+	return table
 }
 
 func rewriteTypeIdents(start ast.Node, info *loader.PackageInfo, table typeTable) {

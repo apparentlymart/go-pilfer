@@ -38,9 +38,8 @@
 // gob encoding and decoding because any stored interface types can never
 // match.
 //
-// At this time the program does not import constants of a type that are found
-// within the same package, which is problematic for named types used as
-// enumeration types since the constants in the source package will have
-// an incompatible type. It is necessary, therefore, to manually copy the
-// relevant constants.
+// For each type, any constants of that type defined in the type's own package
+// are also copied, on the assumption that they are serving as enumeration
+// values for the type. Since these constants are of the new type, they are
+// not compatible with the constants of the same name in the source package.
 package pilfer
